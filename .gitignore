@@ -1,0 +1,16 @@
+node_modules/
+artifacts/
+dist/
+.local-data/
+.smoke-data/
+.cache/
+config/microsoft.local.json
+.env
+.env.*
+!.env.example
+*.log
+*.pfx
+*.p12
+*.key
+Thumbs.db
+.DS_Store
