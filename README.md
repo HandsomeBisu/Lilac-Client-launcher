@@ -1,12 +1,26 @@
 # Lilac Client Launcher
 
-Lilac Client is an independent Minecraft: Java Edition launcher currently under development for public distribution. It provides a desktop interface for version selection and Microsoft account authentication, with Forge/Fabric installation and authenticated game launching planned for subsequent development.
+## 소개
 
-The project is not yet a complete game launcher. Microsoft authentication is implemented, but live end-to-end authentication and Minecraft API approval have not been verified. Game download, installation and launching are not yet implemented.
+**Lilac Client(라일락 클라이언트)**는 여러 버전의 Minecraft: Java Edition과 모드 환경을 한곳에서 관리하고, 게임 안에서 필요한 편의 기능을 제공하기 위해 개발 중인 독립 클라이언트 프로젝트입니다.
 
-전체 화면 게임 풍경과 어두운 오버레이, 연보라 버튼을 사용하는 Electron 데스크톱 런처.
-좁은 아이콘 메뉴, 상단 버전·계정 선택, 중앙 플레이 영역과 하단 모드·버전 바로가기로 구성했다.
-외부 이미지·폰트·웹 서비스 없이 UI가 표시된다.
+이 저장소에서는 Lilac Client의 전용 데스크톱 런처를 개발합니다. 사용자가 자신의 Microsoft 계정으로 로그인하고, 원하는 게임 버전과 실행 설정을 선택해 플레이를 시작할 수 있도록 만드는 것이 목표입니다.
+
+런처는 어두운 배경과 연보라색을 중심으로 구성하며, 버전 선택·계정·플레이 버튼 등 자주 사용하는 기능에 바로 접근할 수 있도록 설계합니다. 현재는 Windows 환경을 기준으로 개발하고 있습니다.
+
+### 개발 목표
+
+- **여러 버전 지원:** 1.8.9부터 26.3까지 선정한 19개 버전을 지원하고, 버전별 실행 환경을 분리해 관리합니다.
+- **모드 환경 관리:** 1.8.9와 1.12.2에는 Forge를, 나머지 지원 대상에는 Fabric을 사용하며 버전에 맞는 모드 설치와 관리를 제공합니다.
+- **게임 내 편의 기능:** 전용 클라이언트와 연동해 FPS·좌표·키 입력 HUD, HUD 편집, 줌 등의 기능을 제공합니다.
+
+위 항목은 제품의 개발 목표이며, 현재 구현 범위는 아래 **현재 동작**에 정리되어 있습니다. 게임 설치·실행과 게임 내 편의 기능은 아직 구현하지 않았습니다.
+
+### About
+
+Lilac Client is an independent Minecraft: Java Edition client project under development for public distribution. It aims to bring version selection, Forge/Fabric mod management, and in-game quality-of-life features into one product. This repository contains its Windows desktop launcher.
+
+The launcher currently implements version selection, saved launch preferences, and a system-browser Microsoft authentication flow using OAuth 2.0 Authorization Code Flow with PKCE. Minecraft API access is intended for checking Java Edition entitlement, retrieving the player's profile, and authenticated game launching. Live end-to-end authentication and API approval have not yet been verified. Game download, installation, launching, mod management, and in-game features remain under development.
 
 ## 실행
 
