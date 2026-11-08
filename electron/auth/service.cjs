@@ -16,7 +16,7 @@ class AuthService {
   }
   snapshot() {
     return {
-      configured: Boolean(this.config.clientId), clientId: this.config.clientId, configSource: this.config.source,
+      configured: Boolean(this.config.clientId),
       busy: this.busy, stage: this.stage, signedIn: Boolean(this.account),
       account: this.account ? { name: this.account.name || this.account.username || 'Microsoft 계정', username: this.account.username || '' } : null,
       minecraft: { verified: Boolean(this.session && this.session.expiresAt > Date.now()), profile: this.session ? { id: this.session.profile.id, name: this.session.profile.name, skinDataUrl: this.session.profile.skinDataUrl || null } : null, error: this.minecraftError },
@@ -79,7 +79,7 @@ class AuthService {
   async run(interactive) {
     await this.ready;
     if (this.active || this.busy) throw new AuthError('busy', '이미 인증을 진행하고 있습니다.');
-    if (!this.config.clientId) throw new AuthError('configuration_required', '개발자 설정에 Lilac의 Microsoft 앱 ID를 입력해 주세요.');
+    if (!this.config.clientId) throw new AuthError('configuration_required', '이 버전에서는 로그인을 사용할 수 없습니다. 최신 버전을 확인하거나 배포자에게 문의해 주세요.');
     const controller = new AbortController();
     this.controller = controller;
     this.busy = true; this.error = null; this.minecraftError = null; this.session = null;

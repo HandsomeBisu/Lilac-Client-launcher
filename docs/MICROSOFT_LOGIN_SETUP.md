@@ -67,19 +67,24 @@ Microsoft OAuth 로그인과 Minecraft 서비스 접근은 별도 단계다.
 
 ## 5. 런처에 앱 ID 입력
 
-1. `Start Lilac.cmd`로 런처를 실행한다.
-2. 오른쪽 위 **로그인**을 누른다.
-3. **개발자 설정**에 Application (client) ID를 붙여 넣고 **앱 ID 저장**을 누른다.
-4. **Microsoft로 로그인**을 누른다.
-5. 열린 기본 브라우저에서 개인 Microsoft 계정으로 로그인하고 동의를 확인한다.
-6. 브라우저가 응답 수신 페이지를 표시하면 런처로 돌아와 최종 결과를 확인한다.
+앱 ID는 개발자가 설정한다. 일반 사용자 화면에는 개발자 설정이나 앱 ID 입력란을 표시하지 않는다.
 
-앱 ID는 `config/microsoft.local.json`에 저장된다. 코드에 예제용 다른 런처의 앱 ID를 넣지 않았다.
-앱 ID를 변경하면 기존 로컬 로그인 정보를 지운다.
-환경 변수 `LILAC_MS_CLIENT_ID`가 있으면 우선하며, UI의 앱 ID 변경은 비활성화된다.
+개발 환경에서는 `config/microsoft.example.json`을 `config/microsoft.local.json`으로 복사하고
+`clientId`를 자신의 앱 ID로 바꾼다. 또는 `LILAC_MS_CLIENT_ID` 환경 변수를 사용한다.
+이미 로컬 설정 파일이 있다면 그 값을 그대로 읽는다. 설정 변경 후 런처를 다시 실행한다.
 
-파일로 직접 설정할 경우 `config/microsoft.example.json`을 `config/microsoft.local.json`으로 복사하고
-`clientId` 값을 자신의 앱 ID로 바꾼다. 파일과 환경 변수를 설정했다면 런처를 다시 실행한다.
+배포 설정을 준비하려면 `npm run prepare:auth`를 실행한다.
+생성된 `.generated/microsoft.json`을 향후 설치 프로그램 구성에서 `resources/microsoft.json`으로 포함한다.
+현재는 이 준비 명령과 배포본의 읽기 경로를 구현한 상태이며, 설치 프로그램 패키징 자체는 후속 단계다.
+배포본은 해당 리소스의 앱 ID를 사용하고 사용자 환경 변수나 입력값으로 바꾸지 않는다.
+
+일반 사용자는 오른쪽 위 **로그인 → Microsoft로 로그인**만 누른다.
+기본 브라우저에서 인증한 뒤 런처로 돌아와 결과를 확인한다.
+로그인 설정이 누락된 빌드는 사용자에게 앱 ID를 요구하지 않고 배포자에게 문의하도록 안내한다.
+
+실제 앱 ID와 생성된 배포 설정 파일은 Git에서 제외한다. 이는 저장소와 화면에서 불필요하게 노출하지 않는 운영 방식이다.
+Client ID는 비밀 인증 정보가 아니며, 로그인 요청이나 배포 파일을 분석하면 확인할 수 있다.
+Client Secret이나 액세스·갱신 토큰과는 구분한다. Client ID 자체를 감추는 것을 인증 보안 수단으로 사용하지 않는다.
 
 ## 6. 테스트 계정 준비 및 확인
 
@@ -94,7 +99,7 @@ Microsoft OAuth 로그인과 Minecraft 서비스 접근은 별도 단계다.
 
 ## 저장 및 로그아웃 동작
 
-인증 정보는 `.local-data/auth/msal-cache.bin`에 암호화된 MSAL 캐시로 저장한다.
+개발 환경에서는 `.local-data/auth/msal-cache.bin`, 배포본에서는 Electron의 사용자별 userData 디렉터리 아래 `auth/msal-cache.bin`에 암호화된 MSAL 캐시로 저장한다.
 Electron 비동기 safeStorage와 Windows DPAPI를 사용한다. 같은 Windows 사용자로 실행한 앱 사이의
 완전한 격리나 악성코드 방어를 보장하는 저장소는 아니다.
 암호화 기능을 사용할 수 없을 때 평문 저장으로 대체하지 않는다.

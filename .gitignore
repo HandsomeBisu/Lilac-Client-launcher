@@ -5,6 +5,7 @@ dist/
 .smoke-data/
 .cache/
 config/microsoft.local.json
+.generated/
 .env
 .env.*
 !.env.example

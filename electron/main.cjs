@@ -3,11 +3,11 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { AuthService } = require('./auth/service.cjs');
 const { SecureVault } = require('./auth/vault.cjs');
-const { AuthError, publicError } = require('./auth/errors.cjs');
+const { publicError } = require('./auth/errors.cjs');
 
 // Keep development data inside this project rather than touching another profile.
 const smoke = process.argv.includes('--smoke-test');
-app.setPath('userData', path.join(__dirname, '..', smoke ? '.smoke-data' : '.local-data'));
+if (!app.isPackaged) app.setPath('userData', path.join(__dirname, '..', smoke ? '.smoke-data' : '.local-data'));
 app.setAppUserModelId('dev.lilac.launcher');
 const appFile = path.join(__dirname, '..', 'src', 'index.html');
 const appUrl = pathToFileURL(appFile).href;
@@ -56,29 +56,14 @@ function authHandler(channel, handler) {
   });
 }
 authHandler('auth:state', () => auth.snapshot());
-authHandler('auth:configure', id => auth.configure(id));
 authHandler('auth:login', () => auth.login());
 authHandler('auth:refresh', () => auth.refresh());
 authHandler('auth:logout', () => auth.logout());
 authHandler('auth:cancel', () => { auth.cancel(); return auth.snapshot(); });
-const authLinks = {
-  register: 'https://entra.microsoft.com/',
-  review: 'https://help.minecraft.net/hc/en-us/articles/16254801392141',
-  xbox: 'https://www.xbox.com/',
-  profile: 'https://www.minecraft.net/msaprofile'
-};
-authHandler('auth:help', async name => {
-  if (name === 'guide') {
-    const error = await shell.openPath(path.join(__dirname, '..', 'docs', 'MICROSOFT_LOGIN_SETUP.md'));
-    if (error) throw new AuthError('guide_open_failed', '안내 문서를 열 수 없습니다. launcher/docs/MICROSOFT_LOGIN_SETUP.md를 확인해 주세요.');
-  } else if (Object.hasOwn(authLinks, name)) await shell.openExternal(authLinks[name]);
-  else throw new AuthError('invalid_link', '허용되지 않은 도움말입니다.');
-  return auth.snapshot();
-});
 app.whenReady().then(() => {
   auth = new AuthService({
-    configFile: path.join(__dirname, '..', smoke ? '.smoke-data' : 'config', 'microsoft.local.json'),
-    envClientId: smoke ? undefined : process.env.LILAC_MS_CLIENT_ID,
+    configFile: app.isPackaged ? path.join(process.resourcesPath, 'microsoft.json') : path.join(__dirname, '..', smoke ? '.smoke-data' : 'config', 'microsoft.local.json'),
+    envClientId: smoke || app.isPackaged ? undefined : process.env.LILAC_MS_CLIENT_ID,
     vault: new SecureVault(path.join(app.getPath('userData'), 'auth', 'msal-cache.bin'), safeStorage),
     openBrowser: url => shell.openExternal(url),
     publish: state => {

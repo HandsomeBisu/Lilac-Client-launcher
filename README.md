@@ -38,6 +38,7 @@ Windows에서는 `Start Lilac.cmd`를 더블클릭해도 된다. 의존성을 �
 - Windows 암호화 인증 캐시, 재실행 시 조용한 갱신, 로그아웃·취소·시간 초과 처리
 
 Microsoft 로그인은 Lilac 전용 앱 등록과 앱 ID 설정이 먼저 필요하다.
+설정은 개발자가 로컬 파일 또는 빌드 단계에서 준비하며, 사용자 화면에는 개발자 설정과 앱 ID를 표시하지 않는다.
 [사용자가 준비할 것과 설정 방법](docs/MICROSOFT_LOGIN_SETUP.md)을 따른다.
 실제 계정을 통한 종단 간 로그인은 아직 검증하지 않았으며,
 인증 흐름은 테스트 응답으로, Windows 저장소는 실제 암호화 API로 검증했다.
@@ -50,6 +51,7 @@ Microsoft 로그인은 Lilac 전용 앱 등록과 앱 ID 설정이 먼저 필요
 
 - `electron/`: 격리된 네이티브 창과 허용된 창 제어 IPC
 - `electron/auth/`: Microsoft/MSAL·PKCE·로컬 콜백·암호화 캐시·Minecraft 인증
+- `npm run prepare:auth`: 로컬 앱 ID를 읽어 Git에서 제외되는 배포 설정 `.generated/microsoft.json` 생성. 설치 프로그램 구성 시 `resources/microsoft.json`으로 포함해야 한다.
 - `src/model.js`: 지원 목록과 저장 설정 검증
 - `src/`: 로컬 화면, 단색 아이콘과 스타일
 - `src/assets/forest-dusk.png`: 생성한 게임 풍경 배경. 제작 방식과 프롬프트는 `docs/BACKGROUND_ASSET.md` 참고

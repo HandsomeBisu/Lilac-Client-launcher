@@ -87,7 +87,8 @@ test('PKCE, nonce and browser login produce a private Minecraft session; IPC sna
   const {authRequest,tokenRequest,opened}=f.requests();
   assert.equal(opened,1);assert.equal(authRequest.codeChallengeMethod,'S256');assert.equal(authRequest.responseMode,'form_post');
   assert.equal(createHash(tokenRequest.codeVerifier),authRequest.codeChallenge);assert.equal(authRequest.nonce,tokenRequest.nonce);
-  const json=JSON.stringify(state);for(const token of ['microsoft-secret','minecraft-secret','private-refresh-secret','authorization-code'])assert.equal(json.includes(token),false);
+  const json=JSON.stringify(state);for(const token of [ID,'microsoft-secret','minecraft-secret','private-refresh-secret','authorization-code'])assert.equal(json.includes(token),false);
+  assert.equal(Object.hasOwn(state,'clientId'),false);assert.equal(Object.hasOwn(state,'configSource'),false);
   assert.equal(f.service.getGameSession().accessToken,'minecraft-secret');
   await f.service.logout();assert.equal(f.cached(),null);assert.equal(f.service.snapshot().signedIn,false);assert.equal(f.service.getGameSession(),null);
 });
@@ -120,7 +121,7 @@ test('changing app ID clears the previous login and returns an idle state',async
   const f=await serviceFixture(t);await f.service.login();
   const nextId='aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
   const state=await f.service.configure(nextId);
-  assert.equal(state.clientId,nextId);assert.equal(state.busy,false);assert.equal(state.signedIn,false);assert.equal(state.minecraft.verified,false);assert.equal(f.cached(),null);
+  assert.equal(f.service.config.clientId,nextId);assert.equal(Object.hasOwn(state,'clientId'),false);assert.equal(state.busy,false);assert.equal(state.signedIn,false);assert.equal(state.minecraft.verified,false);assert.equal(f.cached(),null);
 });
 test('expired silent refresh invalidates game readiness and requests a fresh sign-in',async t=>{
   const f=await serviceFixture(t);await f.service.login();

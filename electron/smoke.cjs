@@ -47,20 +47,17 @@ module.exports = async function smoke(win) {
     click('#account-button');
     await new Promise(resolve => setTimeout(resolve, 100));
     const loginNotice = $('#auth-dialog').open;
-    const missingAppId = !$('#auth-login').hidden && $('#auth-login').disabled && $('#auth-developer').open;
+    const missingAppId = !$('#auth-login').hidden && $('#auth-login').disabled && $('#auth-status').textContent.includes('배포자');
     const stateResponse = await window.lilacDesktop.auth.getState();
-    const privateAuthState = !JSON.stringify(stateResponse).includes('accessToken') && !JSON.stringify(stateResponse).includes('refreshToken');
-    $('#auth-client-id').value = 'invalid';
-    $('#auth-config-form').dispatchEvent(new Event('submit', {bubbles: true, cancelable: true}));
-    await new Promise(resolve => setTimeout(resolve, 100));
-    const invalidAppId = !$('#auth-error').hidden && $('#auth-error').textContent.includes('UUID');
+    const privateAuthState = !JSON.stringify(stateResponse).includes('accessToken') && !JSON.stringify(stateResponse).includes('refreshToken') && !Object.hasOwn(stateResponse.state,'clientId') && !Object.hasOwn(stateResponse.state,'configSource');
+    const developerSettingsRemoved = !$('#auth-developer') && !$('#auth-client-id') && !window.lilacDesktop.auth.configure && !window.lilacDesktop.auth.help;
     click('#auth-dialog .close-dialog');
     const pinnedCount = document.querySelectorAll('[data-pinned]').length;
     click('[data-pinned="1.8.9"]');
     const pinnedSelection = $('#selected-version').textContent;
     click('#version-picker');
     click('[data-quick="26.3"]');
-    return {all, forge, favorites, search, saved, launchNotice, quickCount, quickSelection, loginNotice, missingAppId, invalidAppId, privateAuthState, pinnedCount, pinnedSelection,
+    return {all, forge, favorites, search, saved, launchNotice, quickCount, quickSelection, loginNotice, missingAppId, developerSettingsRemoved, privateAuthState, pinnedCount, pinnedSelection,
       detailMemory: $('#detail-memory').textContent, detailResolution: $('#detail-resolution').textContent,
       backgroundLoaded: $('#scene-image').complete && $('#scene-image').naturalWidth > 0,
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth};
@@ -77,7 +74,7 @@ module.exports = async function smoke(win) {
   assert.equal(result.quickSelection, '26.3');
   assert.equal(result.loginNotice, true);
   assert.equal(result.missingAppId, true);
-  assert.equal(result.invalidAppId, true);
+  assert.equal(result.developerSettingsRemoved, true);
   assert.equal(result.privateAuthState, true);
   assert.equal(result.pinnedCount, 1);
   assert.equal(result.pinnedSelection, '1.8.9');
@@ -85,7 +82,7 @@ module.exports = async function smoke(win) {
   assert.equal(result.detailResolution, '1920 × 1080');
   assert.equal(result.backgroundLoaded, true);
   assert.equal(result.horizontalOverflow, false);
-  const testAuthState = { configured: true, clientId: '12345678-1234-4321-abcd-123456789abc', configSource: 'file', busy: true, stage: 'browser', signedIn: false, account: null, minecraft: { verified: false, profile: null, error: null }, error: null };
+  const testAuthState = { configured: true, busy: true, stage: 'browser', signedIn: false, account: null, minecraft: { verified: false, profile: null, error: null }, error: null };
   win.webContents.send('auth:changed', testAuthState);
   await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(await win.webContents.executeJavaScript(`!document.querySelector('#auth-cancel').hidden && document.querySelector('#auth-login').hidden`), true);
@@ -119,5 +116,5 @@ module.exports = async function smoke(win) {
   await new Promise(resolve => setTimeout(resolve, 100));
   await fs.writeFile(path.join(dir, 'launcher-settings.png'), (await win.webContents.capturePage()).toPNG());
   assert.deepEqual(errors, []);
-  console.log('PASS: catalog, settings, reload persistence, account setup dialog, invalid ID rejection, private IPC state, Windows encrypted storage and compact layout.');
+  console.log('PASS: catalog, settings, reload persistence, consumer login dialog without developer settings or client ID, private IPC state, Windows encrypted storage and compact layout.');
 };

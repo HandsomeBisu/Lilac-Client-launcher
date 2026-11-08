@@ -5,12 +5,10 @@ contextBridge.exposeInMainWorld('lilacDesktop', {
   },
   auth: {
     getState: () => ipcRenderer.invoke('auth:state'),
-    configure: clientId => ipcRenderer.invoke('auth:configure', clientId),
     login: () => ipcRenderer.invoke('auth:login'),
     refresh: () => ipcRenderer.invoke('auth:refresh'),
     logout: () => ipcRenderer.invoke('auth:logout'),
     cancel: () => ipcRenderer.invoke('auth:cancel'),
-    help: name => ipcRenderer.invoke('auth:help', name),
     onChanged: callback => {
       if (typeof callback !== 'function') return () => {};
       const listener = (_event, state) => callback(state);

@@ -104,7 +104,7 @@
     const stages = { initializing: '로그인 정보를 확인하는 중입니다.', configuring: '앱 설정을 저장하는 중입니다.', 'signing-out': '로그인 정보를 삭제하는 중입니다.', browser: '브라우저에서 Microsoft 로그인을 완료해 주세요.', microsoft: 'Microsoft 인증을 확인하는 중입니다.', xbox: 'Xbox 계정을 확인하는 중입니다.', minecraft: 'Minecraft 인증을 확인하는 중입니다.', profile: 'Minecraft 이용 권한과 프로필을 확인하는 중입니다.', restoring: '저장된 로그인 정보를 갱신하는 중입니다.' };
     $('#account-name').textContent = busy ? '인증 중' : profile?.name || value.account?.name || '로그인';
     $('#account-subtitle').textContent = busy ? 'Microsoft 계정' : value.minecraft?.verified ? 'Minecraft Java Edition' : signedIn ? 'Minecraft 확인 필요' : 'Microsoft 계정';
-    $('#auth-status').textContent = stages[value.stage] || (!value.configured ? '로그인에 사용할 Microsoft 앱 ID를 먼저 설정해 주세요.' : signedIn ? (value.minecraft?.verified ? 'Minecraft Java 계정을 확인했습니다.' : 'Microsoft 로그인 정보가 있습니다. Minecraft 이용 가능 여부를 확인해 주세요.') : 'Microsoft 계정으로 로그인하세요.');
+    $('#auth-status').textContent = stages[value.stage] || (!value.configured ? '이 버전에서는 로그인을 사용할 수 없습니다. 최신 버전을 확인하거나 배포자에게 문의해 주세요.' : signedIn ? (value.minecraft?.verified ? 'Minecraft Java 계정을 확인했습니다.' : 'Microsoft 로그인 정보가 있습니다. Minecraft 이용 가능 여부를 확인해 주세요.') : 'Microsoft 계정으로 로그인하세요.');
     $('#auth-profile').hidden = !signedIn;
     $('#auth-display-name').textContent = value.account?.name || '';
     $('#auth-username').textContent = value.account?.username || '';
@@ -120,11 +120,6 @@
     $('#auth-refresh').hidden = !signedIn || busy;
     $('#auth-logout').hidden = busy || (!signedIn && !value.error);
     $('#auth-cancel').hidden = !busy;
-    $('#auth-save-config').disabled = busy || value.configSource === 'environment';
-    $('#auth-client-id').disabled = busy || value.configSource === 'environment';
-    if (document.activeElement !== $('#auth-client-id')) $('#auth-client-id').value = value.clientId || '';
-    if (!value.configured) $('#auth-developer').open = true;
-    $('#auth-config-source').textContent = value.configSource === 'environment' ? 'LILAC_MS_CLIENT_ID 환경 변수에서 설정됨' : value.configured ? '앱 ID 저장됨 · 사용자별 앱 등록은 필요하지 않습니다.' : '앱 개발자가 한 번 등록하면 배포용으로 함께 사용할 수 있습니다.';
     const source = profile?.skinDataUrl || null;
     if (source !== skinSource) {
       skinSource = source;
@@ -156,8 +151,6 @@
   $('#auth-refresh').addEventListener('click', () => authAction('refresh'));
   $('#auth-logout').addEventListener('click', () => authAction('logout'));
   $('#auth-cancel').addEventListener('click', () => authAction('cancel'));
-  $('#auth-config-form').addEventListener('submit', event => { event.preventDefault(); authAction('configure', $('#auth-client-id').value.trim()); });
-  $$('[data-auth-help]').forEach(button => button.addEventListener('click', () => authAction('help', button.dataset.authHelp)));
   $('#auth-dialog').addEventListener('close', () => { if (authState?.busy) authAction('cancel'); });
   if (authApi) {
     const unsubscribe = authApi.onChanged(renderAuth);

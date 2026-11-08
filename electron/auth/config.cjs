@@ -14,7 +14,7 @@ async function loadConfig(file, envId) {
     return { clientId: validateClientId(value.clientId), source: 'file' };
   } catch (error) {
     if (error.code === 'ENOENT') return { clientId: null, source: 'none' };
-    throw new AuthError('invalid_config', 'Microsoft 앱 설정 파일을 읽을 수 없습니다. 개발자 설정에서 앱 ID를 다시 저장해 주세요.');
+    throw new AuthError('invalid_config', '런처의 로그인 설정을 읽을 수 없습니다. 최신 버전을 확인하거나 배포자에게 문의해 주세요.');
   }
 }
 async function saveConfig(file, clientId) {
