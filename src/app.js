@@ -4,6 +4,8 @@
   const $ = selector => document.querySelector(selector);
   const $$ = selector => [...document.querySelectorAll(selector)];
   const key = 'lilac.launcher.settings.v1';
+  const motion = window.LilacMotion;
+  let currentPage = null;
   let state;
   let storageFailed = false;
   try { state = normalize(JSON.parse(localStorage.getItem(key))); }
@@ -35,6 +37,10 @@
     window.scrollTo({ top: 0, behavior: 'instant' });
     $('main').scrollTop = 0;
     if (page === 'versions') renderVersions();
+    if (currentPage !== page) {
+      motion.reveal($(`#page-${page}`));
+      currentPage = page;
+    }
   }
   function sync() {
     const loader = versions.find(item => item.version === state.version).loader;
@@ -66,6 +72,7 @@
     state.version = version;
     save();
     sync();
+    motion.reveal($('#selected-version'));
     if (!storageFailed) toast(`${version} ${versions.find(item => item.version === version).loader} 선택 완료`);
   }
   function renderVersions() {
@@ -82,7 +89,7 @@
     $('#info-confirm').textContent = confirmLabel;
     $('#profile-summary').hidden = true;
     onConfirm = callback;
-    $('#info-dialog').showModal();
+    motion.open($('#info-dialog'));
   }
   $$('[data-window]').forEach(button => button.addEventListener('click', () => window.lilacDesktop?.windowControl(button.dataset.window)));
   $$('[data-page]').forEach(button => button.addEventListener('click', () => go(button.dataset.page)));
@@ -92,16 +99,19 @@
   const authApi = window.lilacDesktop?.auth;
   let authState = null;
   let skinSource = null;
+  let accountsKey = null;
   function showAuthError(error) {
     $('#auth-error').textContent = error?.message || '요청을 처리하지 못했습니다.';
     $('#auth-error').hidden = false;
   }
   function renderAuth(value) {
+    if (Number.isInteger(authState?.revision) && Number.isInteger(value.revision) && authState.revision > value.revision) return;
     authState = value;
     const busy = value.busy;
     const signedIn = value.signedIn;
     const profile = value.minecraft?.profile;
-    const stages = { initializing: '로그인 정보를 확인하는 중입니다.', configuring: '앱 설정을 저장하는 중입니다.', 'signing-out': '로그인 정보를 삭제하는 중입니다.', browser: '브라우저에서 Microsoft 로그인을 완료해 주세요.', microsoft: 'Microsoft 인증을 확인하는 중입니다.', xbox: 'Xbox 계정을 확인하는 중입니다.', minecraft: 'Minecraft 인증을 확인하는 중입니다.', profile: 'Minecraft 이용 권한과 프로필을 확인하는 중입니다.', restoring: '저장된 로그인 정보를 갱신하는 중입니다.' };
+    renderAccounts(value);
+    const stages = { initializing: '로그인 정보를 확인하는 중입니다.', configuring: '앱 설정을 저장하는 중입니다.', 'signing-out': '로그인 정보를 삭제하는 중입니다.', saving: '계정 정보를 저장하는 중입니다.', browser: '브라우저에서 Microsoft 로그인을 완료해 주세요.', microsoft: 'Microsoft 인증을 확인하는 중입니다.', xbox: 'Xbox 계정을 확인하는 중입니다.', minecraft: 'Minecraft 인증을 확인하는 중입니다.', profile: 'Minecraft 이용 권한과 프로필을 확인하는 중입니다.', restoring: '저장된 로그인 정보를 갱신하는 중입니다.' };
     $('#account-name').textContent = busy ? '인증 중' : profile?.name || value.account?.name || '로그인';
     $('#account-subtitle').textContent = busy ? 'Microsoft 계정' : value.minecraft?.verified ? 'Minecraft Java Edition' : signedIn ? 'Minecraft 확인 필요' : 'Microsoft 계정';
     $('#auth-status').textContent = stages[value.stage] || (!value.configured ? '이 버전에서는 로그인을 사용할 수 없습니다. 최신 버전을 확인하거나 배포자에게 문의해 주세요.' : signedIn ? (value.minecraft?.verified ? 'Minecraft Java 계정을 확인했습니다.' : 'Microsoft 로그인 정보가 있습니다. Minecraft 이용 가능 여부를 확인해 주세요.') : 'Microsoft 계정으로 로그인하세요.');
@@ -114,12 +124,16 @@
     const error = value.error || value.minecraft?.error;
     $('#auth-error').hidden = !error;
     $('#auth-error').textContent = error?.message || '';
+    $('#auth-error').classList.toggle('informational', error?.code === 'cancelled');
     $('#auth-login').hidden = busy;
     $('#auth-login').disabled = !value.configured;
-    $('#auth-login').lastChild.textContent = signedIn ? '다시 로그인' : 'Microsoft로 로그인';
+    $('#auth-login-label').textContent = 'Microsoft 계정 추가';
     $('#auth-refresh').hidden = !signedIn || busy;
     $('#auth-logout').hidden = busy || (!signedIn && !value.error);
     $('#auth-cancel').hidden = !busy;
+    $('#auth-logout-all').hidden = busy || !(value.accounts?.length > 1);
+    $('.auth-progress').hidden = !busy;
+    $('#auth-dialog').setAttribute('aria-busy', String(busy));
     const source = profile?.skinDataUrl || null;
     if (source !== skinSource) {
       skinSource = source;
@@ -139,6 +153,49 @@
       }
     }
   }
+  function renderAccounts(value) {
+    const list = $('#auth-account-list');
+    const accounts = value.accounts || [];
+    const nextKey = JSON.stringify(accounts.map(account => [account.id, account.name, account.username, account.active, account.profile])) + String(value.busy);
+    if (nextKey === accountsKey) return;
+    accountsKey = nextKey;
+    $('#auth-account-count').textContent = String(accounts.length);
+    const focusedId = document.activeElement?.closest('[data-switch-account]')?.dataset.switchAccount;
+    const fragment = document.createDocumentFragment();
+    if (!accounts.length) {
+      const empty = document.createElement('p'); empty.className = 'account-empty';
+      empty.textContent = '추가한 계정이 없습니다.'; fragment.append(empty);
+    }
+    for (const account of accounts) {
+      const row = document.createElement('div'); row.className = `saved-account${account.active ? ' selected' : ''}`;
+      const select = document.createElement('button'); select.className = 'account-select'; select.dataset.switchAccount = account.id;
+      select.disabled = value.busy; select.setAttribute('aria-pressed', String(account.active));
+      const avatar = document.createElement('span'); avatar.className = 'saved-avatar';
+      avatar.textContent = (account.profile?.name || account.name || 'M').slice(0, 1).toUpperCase();
+      if (account.profile?.skinDataUrl?.startsWith('data:image/png;base64,')) {
+        const img = new Image();
+        img.onload = () => {
+          if (!avatar.isConnected) return;
+          const canvas = document.createElement('canvas'); canvas.width = 8; canvas.height = 8;
+          const ctx = canvas.getContext('2d'); ctx.imageSmoothingEnabled = false;
+          ctx.drawImage(img, 8, 8, 8, 8, 0, 0, 8, 8); ctx.drawImage(img, 40, 8, 8, 8, 0, 0, 8, 8);
+          avatar.replaceChildren(canvas);
+        };
+        img.src = account.profile.skinDataUrl;
+      }
+      const text = document.createElement('span'); text.className = 'saved-account-text';
+      const name = document.createElement('strong'); name.textContent = account.profile?.name || account.name;
+      const email = document.createElement('small'); email.textContent = account.username || account.name;
+      text.append(name, email);
+      const status = document.createElement('span'); status.className = 'account-check'; status.textContent = account.active ? '사용 중' : '전환';
+      select.append(avatar, text, status);
+      const remove = document.createElement('button'); remove.className = 'account-remove'; remove.dataset.removeAccount = account.id;
+      remove.disabled = value.busy; remove.textContent = '×'; remove.setAttribute('aria-label', `${account.profile?.name || account.name} 계정 삭제`);
+      row.append(select, remove); fragment.append(row);
+    }
+    list.replaceChildren(fragment);
+    if (focusedId && !value.busy) [...list.querySelectorAll('[data-switch-account]')].find(button => button.dataset.switchAccount === focusedId)?.focus({preventScroll:true});
+  }
   async function authAction(action, value) {
     if (!authApi) { showAuthError({ message: '데스크톱 앱으로 실행해 주세요.' }); return; }
     try {
@@ -146,12 +203,19 @@
       if (result.ok) renderAuth(result.state); else showAuthError(result.error);
     } catch { showAuthError({ message: '계정 기능과 통신하지 못했습니다. 런처를 다시 실행해 주세요.' }); }
   }
-  $('#account-button').addEventListener('click', () => { $('#auth-dialog').showModal(); authAction('getState'); });
+  $('#account-button').addEventListener('click', () => { motion.open($('#auth-dialog')); $('#account-button').setAttribute('aria-expanded', 'true'); authAction('getState'); });
   $('#auth-login').addEventListener('click', () => authAction('login'));
   $('#auth-refresh').addEventListener('click', () => authAction('refresh'));
   $('#auth-logout').addEventListener('click', () => authAction('logout'));
   $('#auth-cancel').addEventListener('click', () => authAction('cancel'));
-  $('#auth-dialog').addEventListener('close', () => { if (authState?.busy) authAction('cancel'); });
+  $('#auth-logout-all').addEventListener('click', () => authAction('logoutAll'));
+  $('#auth-account-list').addEventListener('click', event => {
+    const select = event.target.closest('[data-switch-account]');
+    if (select && !select.disabled && !authState?.busy) authAction('switchAccount', select.dataset.switchAccount);
+    const remove = event.target.closest('[data-remove-account]');
+    if (remove && !remove.disabled && !authState?.busy) authAction('removeAccount', remove.dataset.removeAccount);
+  });
+  $('#auth-dialog').addEventListener('close', () => { if (!$('#auth-dialog').open) $('#account-button').setAttribute('aria-expanded', 'false'); });
   if (authApi) {
     const unsubscribe = authApi.onChanged(renderAuth);
     window.addEventListener('beforeunload', unsubscribe, { once: true });
@@ -164,23 +228,25 @@
   });
   $('#version-picker').addEventListener('click', () => {
     $('#quick-versions').innerHTML = versions.map(item => `<button class="quick-version" data-quick="${item.version}" aria-pressed="${state.version === item.version}">${item.version}<small>${item.loader}</small></button>`).join('');
-    $('#version-dialog').showModal();
+    motion.open($('#version-dialog'));
   });
   $('#quick-versions').addEventListener('click', event => {
     const button = event.target.closest('[data-quick]');
-    if (button) { choose(button.dataset.quick); $('#version-dialog').close(); }
+    if (button) { choose(button.dataset.quick); motion.close($('#version-dialog')); }
   });
-  $$('.close-dialog').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+  $$('.close-dialog').forEach(button => button.addEventListener('click', () => motion.close(button.closest('dialog'))));
+  $$('dialog').forEach(dialog => dialog.addEventListener('cancel', event => { event.preventDefault(); motion.close(dialog); }));
   $$('dialog').forEach(dialog => dialog.addEventListener('click', event => {
     const rect = dialog.getBoundingClientRect();
-    if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) dialog.close();
+    if (event.target === dialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) motion.close(dialog);
   }));
-  $('#info-confirm').addEventListener('click', () => { $('#info-dialog').close(); const callback = onConfirm; onConfirm = null; callback?.(); });
+  $('#info-confirm').addEventListener('click', async () => { const callback = onConfirm; onConfirm = null; await motion.close($('#info-dialog')); callback?.(); });
   $('#version-search').addEventListener('input', renderVersions);
   $$('[data-filter]').forEach(button => button.addEventListener('click', () => {
     filter = button.dataset.filter;
     $$('[data-filter]').forEach(item => { item.classList.toggle('active', item === button); item.setAttribute('aria-pressed', String(item === button)); });
     renderVersions();
+    motion.reveal($('#version-grid'));
   }));
   $('#version-grid').addEventListener('click', event => {
     const choice = event.target.closest('[data-choose]');
@@ -192,6 +258,7 @@
       save();
       renderVersions();
       renderFavorites();
+      motion.animate(document.querySelector(`[data-favorite="${id}"] svg`), [{transform:'scale(.65)'},{transform:'scale(1.25)'},{transform:'scale(1)'}], {duration:240});
       const replacement = document.querySelector(`[data-favorite="${id}"]`);
       if (replacement) replacement.focus();
       else $('[data-filter="favorites"]').focus();

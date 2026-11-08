@@ -24,14 +24,14 @@ function createWindow() {
     frame: false, backgroundColor: '#101317', show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
-      contextIsolation: true, nodeIntegration: false, sandbox: true
+      contextIsolation: true, nodeIntegration: false, sandbox: true, backgroundThrottling: !smoke, offscreen: smoke
     }
   });
   win.loadFile(appFile);
   win.once('ready-to-show', () => { if (!smoke) win.show(); });
   if (smoke) {
     win.webContents.once('did-finish-load', () => {
-      require('./smoke.cjs')(win).then(() => app.exit(0)).catch(error => { console.error(error); app.exit(1); });
+      require('./smoke.cjs')(win, auth).then(() => app.exit(0)).catch(error => { console.error(error); app.exit(1); });
     });
   }
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -59,6 +59,9 @@ authHandler('auth:state', () => auth.snapshot());
 authHandler('auth:login', () => auth.login());
 authHandler('auth:refresh', () => auth.refresh());
 authHandler('auth:logout', () => auth.logout());
+authHandler('auth:switch', id => auth.switchAccount(id));
+authHandler('auth:remove', id => auth.removeAccount(id));
+authHandler('auth:logout-all', () => auth.logoutAll());
 authHandler('auth:cancel', () => { auth.cancel(); return auth.snapshot(); });
 app.whenReady().then(() => {
   auth = new AuthService({

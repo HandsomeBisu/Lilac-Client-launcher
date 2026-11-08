@@ -8,6 +8,9 @@ contextBridge.exposeInMainWorld('lilacDesktop', {
     login: () => ipcRenderer.invoke('auth:login'),
     refresh: () => ipcRenderer.invoke('auth:refresh'),
     logout: () => ipcRenderer.invoke('auth:logout'),
+    switchAccount: id => ipcRenderer.invoke('auth:switch', id),
+    removeAccount: id => ipcRenderer.invoke('auth:remove', id),
+    logoutAll: () => ipcRenderer.invoke('auth:logout-all'),
     cancel: () => ipcRenderer.invoke('auth:cancel'),
     onChanged: callback => {
       if (typeof callback !== 'function') return () => {};

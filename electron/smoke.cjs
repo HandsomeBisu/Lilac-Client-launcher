@@ -4,7 +4,7 @@ const path = require('node:path');
 const { safeStorage, app } = require('electron');
 const { SecureVault } = require('./auth/vault.cjs');
 
-module.exports = async function smoke(win) {
+module.exports = async function smoke(win, auth) {
   const errors = [];
   const testVault = new SecureVault(path.join(app.getPath('userData'), 'encryption-test.bin'), safeStorage);
   await testVault.write({ cache: 'test-token-fixture', clientId: 'test' });
@@ -101,20 +101,88 @@ module.exports = async function smoke(win) {
   await fs.mkdir(dir, {recursive: true});
   await fs.writeFile(path.join(dir, 'launcher-home.png'), (await win.webContents.capturePage()).toPNG());
   await win.webContents.executeJavaScript(`document.querySelector('#account-button').click()`);
-  await new Promise(resolve => setTimeout(resolve, 150));
+  await new Promise(resolve => setTimeout(resolve, 370));
   await fs.writeFile(path.join(dir, 'launcher-account.png'), (await win.webContents.capturePage()).toPNG());
   await win.webContents.executeJavaScript(`document.querySelector('#auth-dialog .close-dialog').click()`);
+  await new Promise(resolve => setTimeout(resolve, 260));
   win.setSize(1000, 720);
   await new Promise(resolve => setTimeout(resolve, 200));
   assert.equal(await win.webContents.executeJavaScript('document.documentElement.scrollWidth > innerWidth'), false);
   assert.equal(await win.webContents.executeJavaScript('document.querySelector("main").scrollWidth > document.querySelector("main").clientWidth'), false);
   await fs.writeFile(path.join(dir, 'launcher-compact.png'), (await win.webContents.capturePage()).toPNG());
   await win.webContents.executeJavaScript(`document.querySelector('[data-page="versions"]').click()`);
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise(resolve => setTimeout(resolve, 260));
   await fs.writeFile(path.join(dir, 'launcher-versions.png'), (await win.webContents.capturePage()).toPNG());
   await win.webContents.executeJavaScript(`document.querySelector('[data-page="settings"]').click()`);
-  await new Promise(resolve => setTimeout(resolve, 100));
+  await new Promise(resolve => setTimeout(resolve, 260));
   await fs.writeFile(path.join(dir, 'launcher-settings.png'), (await win.webContents.capturePage()).toPNG());
+  // Keep the real IPC and auth service; substitute only the identity provider in this isolated profile.
+  let nextAccount = {homeAccountId:'smoke-a',name:'Lilac Developer',username:'lilac@example.invalid'};
+  let cachedAccounts = [], browsers = 0, waitForBrowser = false;
+  auth.pcaFactory = () => ({
+    getTokenCache: () => ({
+      serialize: () => JSON.stringify({accounts:cachedAccounts,privateToken:'smoke-refresh-fixture'}),
+      deserialize: data => {cachedAccounts=JSON.parse(data).accounts||[];},
+      getAllAccounts: async () => [...cachedAccounts],
+      removeAccount: async account => {cachedAccounts=cachedAccounts.filter(item=>item.homeAccountId!==account.homeAccountId);}
+    }),
+    getAuthCodeUrl: async () => 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize',
+    acquireTokenByCode: async () => {if(!cachedAccounts.some(item=>item.homeAccountId===nextAccount.homeAccountId))cachedAccounts.push(nextAccount);return {account:nextAccount,accessToken:`smoke-ms:${nextAccount.homeAccountId}`};},
+    acquireTokenSilent: async ({account}) => ({account,accessToken:`smoke-ms:${account.homeAccountId}`})
+  });
+  auth.loopback = async ({signal}) => ({redirectUri:'http://localhost:4567/',response:waitForBrowser ? new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true})) : Promise.resolve({code:'smoke-code'}),close:()=>{}});
+  auth.openBrowser = async () => {browsers++;};
+  auth.verify = async token => ({accessToken:'smoke-game-fixture',expiresAt:Date.now()+60000,profile:{id:(token.endsWith('smoke-a')?'a':'b').repeat(32),name:token.endsWith('smoke-a')?'LilacDev':'Builder',skinDataUrl:null}});
+  const configFile = auth.configFile;
+  const waitUntil = async script => {
+    for(let count=0;count<100;count++) {if(await win.webContents.executeJavaScript(script))return;await new Promise(resolve=>setTimeout(resolve,30));}
+    throw new Error('UI condition timed out');
+  };
+  try {
+    await auth.configure('12345678-1234-4321-abcd-123456789abc');
+    await win.webContents.executeJavaScript(`document.querySelector('#account-button').click()`);
+    await new Promise(resolve=>setTimeout(resolve,40));
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#auth-dialog').getAnimations().length>0`),true);
+    await new Promise(resolve=>setTimeout(resolve,340));
+    assert.equal(await win.webContents.executeJavaScript(`Math.abs(document.querySelector('#auth-dialog').getBoundingClientRect().right-innerWidth)<2`),true);
+    await win.webContents.executeJavaScript(`document.querySelector('#auth-login').click()`);
+    await waitUntil(`document.querySelector('#account-name').textContent==='LilacDev' && document.querySelector('#auth-cancel').hidden`);
+    nextAccount={homeAccountId:'smoke-b',name:'Builder Account',username:'builder@example.invalid'};
+    await win.webContents.executeJavaScript(`document.querySelector('#auth-login').click()`);
+    await waitUntil(`document.querySelectorAll('[data-switch-account]').length===2 && document.querySelector('#account-name').textContent==='Builder'`);
+    const staleState = {...auth.snapshot(),revision:0,busy:true,stage:'browser'};
+    win.webContents.send('auth:changed',staleState);
+    await new Promise(resolve=>setTimeout(resolve,30));
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#account-name').textContent`),'Builder');
+    await win.webContents.executeJavaScript(`document.querySelector('[data-switch-account="smoke-a"]').click()`);
+    await waitUntil(`document.querySelector('#account-name').textContent==='LilacDev' && document.querySelector('[data-switch-account="smoke-a"]').getAttribute('aria-pressed')==='true'`);
+    assert.equal(browsers,2);
+    waitForBrowser=true;
+    await win.webContents.executeJavaScript(`document.querySelector('#auth-login').click()`);
+    await waitUntil(`!document.querySelector('#auth-cancel').hidden`);
+    await win.webContents.executeJavaScript(`document.querySelector('#auth-dialog .close-dialog').click()`);
+    await waitUntil(`!document.querySelector('#auth-dialog').open && document.querySelector('#account-button').getAttribute('aria-expanded')==='false'`);
+    assert.equal(auth.busy,true);
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#account-button').getAttribute('aria-expanded')`),'false');
+    await win.webContents.executeJavaScript(`document.querySelector('#account-button').click();document.querySelector('#auth-cancel').click()`);
+    await waitUntil(`document.querySelector('#account-name').textContent==='LilacDev' && document.querySelectorAll('[data-switch-account]').length===2`);
+    waitForBrowser=false;
+    await new Promise(resolve=>setTimeout(resolve,370));
+    await fs.writeFile(path.join(dir,'launcher-accounts.png'),(await win.webContents.capturePage()).toPNG());
+    await win.webContents.executeJavaScript(`document.querySelector('[data-remove-account="smoke-b"]').click()`);
+    await waitUntil(`document.querySelectorAll('[data-switch-account]').length===1`);
+    assert.equal(auth.account.homeAccountId,'smoke-a');
+    // Reduced motion also bypasses JavaScript animations; closing still releases the modal and focus.
+    await win.webContents.executeJavaScript(`document.querySelector('#motion-toggle').click();document.querySelector('#auth-dialog .close-dialog').click()`);
+    await new Promise(resolve=>setTimeout(resolve,30));
+    assert.equal(await win.webContents.executeJavaScript(`!document.querySelector('#auth-dialog').open && !window.LilacMotion.enabled()`),true);
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#account-button').getAttribute('aria-expanded')`),'false');
+    await auth.logoutAll();
+    await win.webContents.executeJavaScript(`document.querySelector('#motion-toggle').click()`);
+  } finally {
+    auth.cancel();if(auth.active)await auth.active;
+    await auth.logoutAll();await fs.rm(configFile,{force:true});
+  }
   assert.deepEqual(errors, []);
-  console.log('PASS: catalog, settings, reload persistence, consumer login dialog without developer settings or client ID, private IPC state, Windows encrypted storage and compact layout.');
+  console.log('PASS: catalog, settings, animated drawer, account addition/switch/removal through IPC, explicit cancellation, reduced motion, private state, Windows encrypted storage and compact layout.');
 };

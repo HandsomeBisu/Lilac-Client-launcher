@@ -35,7 +35,9 @@ Windows에서는 `Start Lilac.cmd`를 더블클릭해도 된다. 의존성을 �
 - 플레이 화면에서 즐겨찾는 버전 바로 선택, 현재 실행 설정 확인
 - 설정 초기화 확인, 다이얼로그, 키보드 포커스, 창 최소화·최대화·닫기
 - 기본 브라우저를 통한 Microsoft 로그인, Xbox·Minecraft 권한 및 프로필 확인, 이름·스킨 표시
+- 프로필 버튼에서 열리는 오른쪽 계정 패널, 여러 Microsoft 계정 추가·전환·개별 삭제·전체 로그아웃
 - Windows 암호화 인증 캐시, 재실행 시 조용한 갱신, 로그아웃·취소·시간 초과 처리
+- 페이지·팝업·계정 패널·버튼·즐겨찾기 전환 효과. 화면 효과 설정과 OS의 동작 줄이기 설정 반영
 
 Microsoft 로그인은 Lilac 전용 앱 등록과 앱 ID 설정이 먼저 필요하다.
 설정은 개발자가 로컬 파일 또는 빌드 단계에서 준비하며, 사용자 화면에는 개발자 설정과 앱 ID를 표시하지 않는다.
@@ -53,6 +55,7 @@ Microsoft 로그인은 Lilac 전용 앱 등록과 앱 ID 설정이 먼저 필요
 - `electron/auth/`: Microsoft/MSAL·PKCE·로컬 콜백·암호화 캐시·Minecraft 인증
 - `npm run prepare:auth`: 로컬 앱 ID를 읽어 Git에서 제외되는 배포 설정 `.generated/microsoft.json` 생성. 설치 프로그램 구성 시 `resources/microsoft.json`으로 포함해야 한다.
 - `src/model.js`: 지원 목록과 저장 설정 검증
+- `src/motion.js`: 팝업 열기·닫기, 페이지 전환, 상호작용 애니메이션과 동작 줄이기 처리
 - `src/`: 로컬 화면, 단색 아이콘과 스타일
 - `src/assets/forest-dusk.png`: 생성한 게임 풍경 배경. 제작 방식과 프롬프트는 `docs/BACKGROUND_ASSET.md` 참고
 - `tests/`: 지원 조합과 저장 설정 복구 검증

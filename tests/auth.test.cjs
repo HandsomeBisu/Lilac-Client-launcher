@@ -68,17 +68,18 @@ async function serviceFixture(t, options = {}) {
   const file=path.join(dir,'config.json'); await fs.writeFile(file,JSON.stringify({clientId:ID}));
   t.after(async () => {await fs.rm(file,{force:true});await fs.rmdir(dir);});
   let cacheValue=null; let authRequest, tokenRequest; let opened=0;
+  let cachedAccounts=[], nextAccount=account;
   const vault = {check:async()=>{},read:async()=>cacheValue,write:async value=>{cacheValue=value;},clear:async()=>{cacheValue=null;}};
   const pca = {
     getAuthCodeUrl:async request=>{authRequest=request;return 'https://login.microsoftonline.com/consumers/oauth2/v2.0/authorize';},
-    acquireTokenByCode:async request=>{tokenRequest=request;return {account,accessToken:'microsoft-secret'};},
-    acquireTokenSilent:async()=>({account,accessToken:'refreshed-ms-secret'}),
-    getTokenCache:()=>({serialize:()=>JSON.stringify({refreshToken:'private-refresh-secret'}),deserialize:()=>{},getAllAccounts:async()=>[account]})
+    acquireTokenByCode:async request=>{tokenRequest=request;if(!cachedAccounts.some(item=>item.homeAccountId===nextAccount.homeAccountId))cachedAccounts.push(nextAccount);return {account:nextAccount,accessToken:`microsoft-secret:${nextAccount.homeAccountId}`};},
+    acquireTokenSilent:async request=>({account:request.account,accessToken:`refreshed-ms-secret:${request.account.homeAccountId}`}),
+    getTokenCache:()=>({serialize:()=>JSON.stringify({refreshToken:'private-refresh-secret',accounts:cachedAccounts}),deserialize:value=>{cachedAccounts=JSON.parse(value).accounts||[];},getAllAccounts:async()=>[...cachedAccounts],removeAccount:async target=>{cachedAccounts=cachedAccounts.filter(item=>item.homeAccountId!==target.homeAccountId);}})
   };
   const verify = async()=>({accessToken:'minecraft-secret',expiresAt:Date.now()+3600000,profile:{id:'a'.repeat(32),name:'LilacTest',skinDataUrl:null}});
   const service=new AuthService({configFile:file,vault,openBrowser:async()=>{opened++;},pcaFactory:()=>pca,verify,loopback:async()=>({redirectUri:'http://localhost:4567/',response:Promise.resolve({code:'authorization-code'}),close:()=>{}}),...options});
   await service.ready;
-  return {service,pca,vault,requests:()=>({authRequest,tokenRequest,opened}),cached:()=>cacheValue};
+  return {service,pca,vault,requests:()=>({authRequest,tokenRequest,opened}),cached:()=>cacheValue,setLoginAccount:value=>{nextAccount=value;}};
 }
 test('PKCE, nonce and browser login produce a private Minecraft session; IPC snapshot contains no tokens',async t=>{
   const f=await serviceFixture(t);
@@ -128,4 +129,71 @@ test('expired silent refresh invalidates game readiness and requests a fresh sig
   f.pca.acquireTokenSilent=async()=>{throw {errorCode:'invalid_grant'};};
   const state=await f.service.refresh();
   assert.equal(state.error.code,'sign_in_required');assert.equal(state.minecraft.verified,false);assert.equal(f.service.getGameSession(),null);
+});
+const secondAccount = {homeAccountId:'second-id',name:'Second User',username:'second@example.invalid'};
+const verifyPerAccount = async token => {
+  const second = token.endsWith(':second-id');
+  return {accessToken:second?'private-game-B':'private-game-A',expiresAt:Date.now()+3600000,profile:{id:(second?'b':'a').repeat(32),name:second?'PlayerB':'PlayerA'}};
+};
+test('add two accounts, switch without a browser, and restore selected account plus cached profiles',async t=>{
+  const f=await serviceFixture(t,{verify:verifyPerAccount});
+  await f.service.login();f.setLoginAccount(secondAccount);await f.service.login();
+  assert.equal(f.service.snapshot().accounts.length,2);assert.equal(f.service.snapshot().account.id,'second-id');
+  assert.equal(f.service.getGameSession().accessToken,'private-game-B');
+  await f.service.switchAccount('home-id');
+  assert.equal(f.service.snapshot().account.id,'home-id');assert.equal(f.service.getGameSession().accessToken,'private-game-A');
+  assert.equal(f.requests().opened,2);
+  const restored=new AuthService({configFile:f.service.configFile,vault:f.vault,openBrowser:async()=>{throw new Error('unexpected browser');},pcaFactory:()=>f.pca,verify:verifyPerAccount});
+  await restored.ready;
+  assert.equal(restored.snapshot().accounts.length,2);assert.equal(restored.snapshot().account.id,'home-id');
+  assert.deepEqual(restored.snapshot().accounts.map(item=>item.profile.name),['PlayerA','PlayerB']);
+  assert.equal(restored.getGameSession(),null);
+  await restored.switchAccount('second-id');assert.equal(restored.getGameSession().accessToken,'private-game-B');
+  const json=JSON.stringify(restored.snapshot());for(const token of [ID,'microsoft-secret','private-game-A','private-game-B','private-refresh-secret'])assert.equal(json.includes(token),false);
+});
+test('account removal retains other accounts and refreshes the fallback selection',async t=>{
+  const f=await serviceFixture(t,{verify:verifyPerAccount});
+  await f.service.login();f.setLoginAccount(secondAccount);await f.service.login();
+  await f.service.removeAccount('second-id');
+  assert.equal(f.service.snapshot().account.id,'home-id');assert.equal(f.service.snapshot().accounts.length,1);
+  assert.equal(f.service.getGameSession().accessToken,'private-game-A');
+  await f.service.logoutAll();assert.equal(f.service.snapshot().accounts.length,0);assert.equal(f.cached(),null);assert.equal(f.service.getGameSession(),null);
+});
+test('cancelled account addition rolls back the candidate and retains the previous usable session',async t=>{
+  let entered;const verifying=new Promise(resolve=>{entered=resolve;});
+  const f=await serviceFixture(t,{verify:async(token,{signal})=>{
+    if(!token.endsWith(':second-id'))return verifyPerAccount(token);
+    entered();await new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true}));
+  }});
+  await f.service.login();f.setLoginAccount(secondAccount);
+  const addition=f.service.login();await verifying;
+  assert.equal(f.service.getGameSession(),null);
+  f.service.cancel();await addition;
+  assert.equal(f.service.snapshot().account.id,'home-id');assert.equal(f.service.snapshot().accounts.length,1);
+  assert.equal(f.service.getGameSession().accessToken,'private-game-A');
+  assert.equal(f.cached().accountId,'home-id');
+  assert.equal((await f.pca.getTokenCache().getAllAccounts()).length,1);
+});
+test('failed switch and cache write cannot replace the previous active game identity',async t=>{
+  const f=await serviceFixture(t,{verify:verifyPerAccount});
+  await f.service.login();f.setLoginAccount(secondAccount);await f.service.login();await f.service.switchAccount('home-id');
+  const silent=f.pca.acquireTokenSilent;
+  f.pca.acquireTokenSilent=async()=>{throw {errorCode:'invalid_grant'};};
+  await f.service.switchAccount('second-id');assert.equal(f.service.snapshot().account.id,'home-id');assert.equal(f.service.getGameSession().accessToken,'private-game-A');
+  f.pca.acquireTokenSilent=silent;f.vault.write=async()=>{throw new AuthError('cache_write_failed','storage unavailable');};
+  await f.service.switchAccount('second-id');assert.equal(f.service.snapshot().account.id,'home-id');assert.equal(f.service.getGameSession().accessToken,'private-game-A');assert.equal(f.cached().accountId,'home-id');
+  await assert.rejects(f.service.switchAccount('not-saved'),{code:'unknown_account'});
+});
+test('legacy single-account caches restore without profile metadata',async t=>{
+  const f=await serviceFixture(t);await f.service.login();delete f.cached().profiles;
+  const restored=new AuthService({configFile:f.service.configFile,vault:f.vault,openBrowser:async()=>{throw new Error('unexpected browser');},pcaFactory:()=>f.pca,verify:verifyPerAccount});
+  await restored.ready;assert.equal(restored.snapshot().account.id,'home-id');assert.equal(restored.snapshot().accounts.length,1);assert.equal(restored.snapshot().minecraft.profile,null);
+  await restored.refresh();assert.equal(restored.snapshot().minecraft.profile.name,'PlayerA');
+});
+test('silent authentication must match the selected account',async t=>{
+  const f=await serviceFixture(t,{verify:verifyPerAccount});
+  await f.service.login();f.setLoginAccount(secondAccount);await f.service.login();await f.service.switchAccount('home-id');
+  f.pca.acquireTokenSilent=async()=>({account:secondAccount,accessToken:'wrong-identity-token'});
+  const state=await f.service.switchAccount('home-id');
+  assert.equal(state.error.code,'account_mismatch');assert.equal(state.account.id,'home-id');assert.equal(f.service.getGameSession().accessToken,'private-game-A');
 });
