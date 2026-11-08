@@ -90,6 +90,8 @@ test('PKCE, nonce and browser login produce a private Minecraft session; IPC sna
   assert.equal(createHash(tokenRequest.codeVerifier),authRequest.codeChallenge);assert.equal(authRequest.nonce,tokenRequest.nonce);
   const json=JSON.stringify(state);for(const token of [ID,'microsoft-secret','minecraft-secret','private-refresh-secret','authorization-code'])assert.equal(json.includes(token),false);
   assert.equal(Object.hasOwn(state,'clientId'),false);assert.equal(Object.hasOwn(state,'configSource'),false);
+  assert.equal(JSON.stringify(state).includes('test@example.invalid'),false);assert.equal(Object.hasOwn(state.account,'name'),false);
+  assert.equal(Object.hasOwn(state.accounts[0],'username'),false);
   assert.equal(f.service.getGameSession().accessToken,'minecraft-secret');
   await f.service.logout();assert.equal(f.cached(),null);assert.equal(f.service.snapshot().signedIn,false);assert.equal(f.service.getGameSession(),null);
 });

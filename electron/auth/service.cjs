@@ -26,8 +26,8 @@ class AuthService {
       configured: Boolean(this.config.clientId),
       revision: this.revision,
       busy: this.busy, stage: this.stage, signedIn: Boolean(this.account),
-      account: this.account ? { id: this.account.homeAccountId, name: this.account.name || this.account.username || 'Microsoft 계정', username: this.account.username || '' } : null,
-      accounts: [...this.accounts.values()].map(account => ({ id: account.homeAccountId, name: account.name || account.username || 'Microsoft 계정', username: account.username || '', active: account.homeAccountId === this.account?.homeAccountId, profile: publicProfile(this.profiles.get(account.homeAccountId)) })),
+      account: this.account ? { id: this.account.homeAccountId } : null,
+      accounts: [...this.accounts.values()].map(account => ({ id: account.homeAccountId, active: account.homeAccountId === this.account?.homeAccountId, profile: publicProfile(this.profiles.get(account.homeAccountId)) })),
       minecraft: { verified: Boolean(this.session && this.session.expiresAt > Date.now()), profile, error: this.minecraftError },
       error: this.error
     };

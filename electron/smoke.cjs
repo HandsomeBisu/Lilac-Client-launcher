@@ -47,7 +47,7 @@ module.exports = async function smoke(win, auth) {
     click('#account-button');
     await new Promise(resolve => setTimeout(resolve, 100));
     const loginNotice = $('#auth-dialog').open;
-    const missingAppId = !$('#auth-login').hidden && $('#auth-login').disabled && $('#auth-status').textContent.includes('배포자');
+    const missingAppId = !$('#auth-login').hidden && $('#auth-login').disabled && $('#auth-status').textContent.includes('최신 버전');
     const stateResponse = await window.lilacDesktop.auth.getState();
     const privateAuthState = !JSON.stringify(stateResponse).includes('accessToken') && !JSON.stringify(stateResponse).includes('refreshToken') && !Object.hasOwn(stateResponse.state,'clientId') && !Object.hasOwn(stateResponse.state,'configSource');
     const developerSettingsRemoved = !$('#auth-developer') && !$('#auth-client-id') && !window.lilacDesktop.auth.configure && !window.lilacDesktop.auth.help;
@@ -86,9 +86,9 @@ module.exports = async function smoke(win, auth) {
   win.webContents.send('auth:changed', testAuthState);
   await new Promise(resolve => setTimeout(resolve, 50));
   assert.equal(await win.webContents.executeJavaScript(`!document.querySelector('#auth-cancel').hidden && document.querySelector('#auth-login').hidden`), true);
-  win.webContents.send('auth:changed', { ...testAuthState, busy: false, stage: 'idle', signedIn: true, account: { name: '<img src=x>', username: 'test@example.invalid' }, minecraft: { verified: true, error: null, profile: {id:'a'.repeat(32),name:'LilacTest',skinDataUrl:null} } });
+  win.webContents.send('auth:changed', { ...testAuthState, busy: false, stage: 'idle', signedIn: true, account: {id:'escape-test'}, accounts:[{id:'escape-test',active:true,profile:{id:'a'.repeat(32),name:'<img src=x>',skinDataUrl:null}}], minecraft: { verified: true, error: null, profile: {id:'a'.repeat(32),name:'LilacTest',skinDataUrl:null} } });
   await new Promise(resolve => setTimeout(resolve, 50));
-  assert.deepEqual(await win.webContents.executeJavaScript(`({name:document.querySelector('#account-name').textContent,escaped:document.querySelector('#auth-display-name').textContent,logout:!document.querySelector('#auth-logout').hidden,injected:document.querySelector('#auth-profile img')!==null})`), {name:'LilacTest',escaped:'<img src=x>',logout:true,injected:false});
+  assert.deepEqual(await win.webContents.executeJavaScript(`({name:document.querySelector('#account-name').textContent,escaped:document.querySelector('.saved-account-text strong').textContent,injected:document.querySelector('#auth-account-list img[src="x"]')!==null,detailsRemoved:!document.querySelector('#auth-profile')&&!document.querySelector('.auth-security-note')})`), {name:'LilacTest',escaped:'<img src=x>',injected:false,detailsRemoved:true});
   // Reload validates actual browser storage and rehydration, not just a JSON round trip.
   await new Promise(resolve => { win.webContents.once('did-finish-load', resolve); win.webContents.reload(); });
   const reloaded = await win.webContents.executeJavaScript(`({ version: document.querySelector('#selected-version').textContent, memory: document.querySelector('#memory-slider').value })`);
@@ -132,7 +132,8 @@ module.exports = async function smoke(win, auth) {
   });
   auth.loopback = async ({signal}) => ({redirectUri:'http://localhost:4567/',response:waitForBrowser ? new Promise((resolve,reject)=>signal.addEventListener('abort',()=>reject(signal.reason),{once:true})) : Promise.resolve({code:'smoke-code'}),close:()=>{}});
   auth.openBrowser = async () => {browsers++;};
-  auth.verify = async token => ({accessToken:'smoke-game-fixture',expiresAt:Date.now()+60000,profile:{id:(token.endsWith('smoke-a')?'a':'b').repeat(32),name:token.endsWith('smoke-a')?'LilacDev':'Builder',skinDataUrl:null}});
+  const fixtureSkins = await win.webContents.executeJavaScript(`['#986e52','#af855e'].map(color=>{const c=document.createElement('canvas');c.width=c.height=64;const ctx=c.getContext('2d');ctx.fillStyle=color;ctx.fillRect(8,8,8,8);ctx.fillStyle='#40343c';ctx.fillRect(8,8,8,2);ctx.fillStyle='#e7e1ea';ctx.fillRect(9,12,2,1);ctx.fillRect(13,12,2,1);ctx.fillStyle='#6374a4';ctx.fillRect(10,12,1,1);ctx.fillRect(13,12,1,1);ctx.fillStyle='#765044';ctx.fillRect(11,14,2,1);return c.toDataURL('image/png');})`);
+  auth.verify = async token => ({accessToken:'smoke-game-fixture',expiresAt:Date.now()+60000,profile:{id:(token.endsWith('smoke-a')?'a':'b').repeat(32),name:token.endsWith('smoke-a')?'LilacDev':'Builder',skinDataUrl:fixtureSkins[token.endsWith('smoke-a')?0:1]}});
   const configFile = auth.configFile;
   const waitUntil = async script => {
     for(let count=0;count<100;count++) {if(await win.webContents.executeJavaScript(script))return;await new Promise(resolve=>setTimeout(resolve,30));}
@@ -150,6 +151,9 @@ module.exports = async function smoke(win, auth) {
     nextAccount={homeAccountId:'smoke-b',name:'Builder Account',username:'builder@example.invalid'};
     await win.webContents.executeJavaScript(`document.querySelector('#auth-login').click()`);
     await waitUntil(`document.querySelectorAll('[data-switch-account]').length===2 && document.querySelector('#account-name').textContent==='Builder'`);
+    await waitUntil(`document.querySelectorAll('.saved-avatar canvas').length===2`);
+    assert.equal(await win.webContents.executeJavaScript(`document.querySelector('#auth-dialog').textContent.includes('@') || document.querySelector('#auth-dialog').textContent.includes('Builder Account') || !!document.querySelector('.auth-security-note')`),false);
+    assert.deepEqual(await win.webContents.executeJavaScript(`[...document.querySelectorAll('.saved-account-text strong')].map(el=>el.textContent)`),['LilacDev','Builder']);
     const staleState = {...auth.snapshot(),revision:0,busy:true,stage:'browser'};
     win.webContents.send('auth:changed',staleState);
     await new Promise(resolve=>setTimeout(resolve,30));

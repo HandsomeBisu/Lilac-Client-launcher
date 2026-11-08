@@ -112,24 +112,19 @@
     const profile = value.minecraft?.profile;
     renderAccounts(value);
     const stages = { initializing: '로그인 정보를 확인하는 중입니다.', configuring: '앱 설정을 저장하는 중입니다.', 'signing-out': '로그인 정보를 삭제하는 중입니다.', saving: '계정 정보를 저장하는 중입니다.', browser: '브라우저에서 Microsoft 로그인을 완료해 주세요.', microsoft: 'Microsoft 인증을 확인하는 중입니다.', xbox: 'Xbox 계정을 확인하는 중입니다.', minecraft: 'Minecraft 인증을 확인하는 중입니다.', profile: 'Minecraft 이용 권한과 프로필을 확인하는 중입니다.', restoring: '저장된 로그인 정보를 갱신하는 중입니다.' };
-    $('#account-name').textContent = busy ? '인증 중' : profile?.name || value.account?.name || '로그인';
+    $('#account-name').textContent = busy ? '인증 중' : profile?.name || (signedIn ? '프로필 확인 필요' : '로그인');
     $('#account-subtitle').textContent = busy ? 'Microsoft 계정' : value.minecraft?.verified ? 'Minecraft Java Edition' : signedIn ? 'Minecraft 확인 필요' : 'Microsoft 계정';
-    $('#auth-status').textContent = stages[value.stage] || (!value.configured ? '이 버전에서는 로그인을 사용할 수 없습니다. 최신 버전을 확인하거나 배포자에게 문의해 주세요.' : signedIn ? (value.minecraft?.verified ? 'Minecraft Java 계정을 확인했습니다.' : 'Microsoft 로그인 정보가 있습니다. Minecraft 이용 가능 여부를 확인해 주세요.') : 'Microsoft 계정으로 로그인하세요.');
-    $('#auth-profile').hidden = !signedIn;
-    $('#auth-display-name').textContent = value.account?.name || '';
-    $('#auth-username').textContent = value.account?.username || '';
-    $('#auth-minecraft-profile').hidden = !profile;
-    $('#auth-player-name').textContent = profile?.name || '';
-    $('#auth-player-id').textContent = profile?.id || '';
+    $('#auth-status').textContent = stages[value.stage] || (!value.configured ? '지금은 로그인할 수 없습니다. 최신 버전을 확인해 주세요.' : '');
+    $('#auth-status').hidden = value.configured && !busy && value.stage !== 'initializing';
     const error = value.error || value.minecraft?.error;
-    $('#auth-error').hidden = !error;
+    $('#auth-error').hidden = !error || error.code === 'cancelled';
     $('#auth-error').textContent = error?.message || '';
     $('#auth-error').classList.toggle('informational', error?.code === 'cancelled');
     $('#auth-login').hidden = busy;
     $('#auth-login').disabled = !value.configured;
     $('#auth-login-label').textContent = 'Microsoft 계정 추가';
-    $('#auth-refresh').hidden = !signedIn || busy;
-    $('#auth-logout').hidden = busy || (!signedIn && !value.error);
+    $('#auth-refresh').hidden = !signedIn || busy || value.minecraft?.verified;
+    $('#auth-logout').hidden = busy || signedIn || !value.error;
     $('#auth-cancel').hidden = !busy;
     $('#auth-logout-all').hidden = busy || !(value.accounts?.length > 1);
     $('.auth-progress').hidden = !busy;
@@ -156,7 +151,7 @@
   function renderAccounts(value) {
     const list = $('#auth-account-list');
     const accounts = value.accounts || [];
-    const nextKey = JSON.stringify(accounts.map(account => [account.id, account.name, account.username, account.active, account.profile])) + String(value.busy);
+    const nextKey = JSON.stringify(accounts.map(account => [account.id, account.active, account.profile])) + String(value.busy);
     if (nextKey === accountsKey) return;
     accountsKey = nextKey;
     $('#auth-account-count').textContent = String(accounts.length);
@@ -170,8 +165,11 @@
       const row = document.createElement('div'); row.className = `saved-account${account.active ? ' selected' : ''}`;
       const select = document.createElement('button'); select.className = 'account-select'; select.dataset.switchAccount = account.id;
       select.disabled = value.busy; select.setAttribute('aria-pressed', String(account.active));
+      const nickname = account.profile?.name || '프로필 확인 필요';
+      select.setAttribute('aria-label', `${nickname}${account.active ? ', 사용 중' : ', 계정 전환'}`);
       const avatar = document.createElement('span'); avatar.className = 'saved-avatar';
-      avatar.textContent = (account.profile?.name || account.name || 'M').slice(0, 1).toUpperCase();
+      const fallback = document.createElement('img'); fallback.src = 'assets/default-head.svg'; fallback.alt = '';
+      avatar.append(fallback);
       if (account.profile?.skinDataUrl?.startsWith('data:image/png;base64,')) {
         const img = new Image();
         img.onload = () => {
@@ -184,13 +182,12 @@
         img.src = account.profile.skinDataUrl;
       }
       const text = document.createElement('span'); text.className = 'saved-account-text';
-      const name = document.createElement('strong'); name.textContent = account.profile?.name || account.name;
-      const email = document.createElement('small'); email.textContent = account.username || account.name;
-      text.append(name, email);
-      const status = document.createElement('span'); status.className = 'account-check'; status.textContent = account.active ? '사용 중' : '전환';
+      const name = document.createElement('strong'); name.textContent = nickname;
+      text.append(name);
+      const status = document.createElement('span'); status.className = 'account-check'; status.textContent = account.active ? '사용 중' : '';
       select.append(avatar, text, status);
       const remove = document.createElement('button'); remove.className = 'account-remove'; remove.dataset.removeAccount = account.id;
-      remove.disabled = value.busy; remove.textContent = '×'; remove.setAttribute('aria-label', `${account.profile?.name || account.name} 계정 삭제`);
+      remove.disabled = value.busy; remove.textContent = '×'; remove.setAttribute('aria-label', `${nickname} 계정 삭제`);
       row.append(select, remove); fragment.append(row);
     }
     list.replaceChildren(fragment);
