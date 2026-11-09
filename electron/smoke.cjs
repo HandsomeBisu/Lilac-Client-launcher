@@ -58,7 +58,7 @@ module.exports = async function smoke(win, auth) {
     click('#version-picker');
     click('[data-quick="26.3"]');
     return {all, forge, favorites, search, saved, launchNotice, quickCount, quickSelection, loginNotice, missingAppId, developerSettingsRemoved, privateAuthState, pinnedCount, pinnedSelection,
-      detailMemory: $('#detail-memory').textContent, detailResolution: $('#detail-resolution').textContent,
+      detailMemory: $('#memory-value').textContent, detailResolution: $('#resolution-select').value.replace('x',' × '),
       backgroundLoaded: $('#scene-image').complete && $('#scene-image').naturalWidth > 0,
       horizontalOverflow: document.documentElement.scrollWidth > innerWidth};
   })()`);

@@ -46,9 +46,6 @@
     const loader = versions.find(item => item.version === state.version).loader;
     $('#selected-version').textContent = state.version;
     $('#selected-loader').textContent = loader;
-    $('#detail-loader').textContent = loader;
-    $('#detail-memory').textContent = `${state.memory} GB`;
-    $('#detail-resolution').textContent = state.resolution.replace('x', ' × ');
     $('#mods-version').textContent = state.version;
     $('#mods-loader').textContent = loader;
     $('#memory-slider').value = state.memory;
@@ -269,8 +266,8 @@
       document.querySelector(`[data-pinned="${id}"]`)?.focus();
     }
   });
-  $('#memory-slider').addEventListener('input', event => { state.memory = Number(event.target.value); $('#memory-value').textContent = `${state.memory} GB`; $('#detail-memory').textContent = `${state.memory} GB`; save(); });
-  $('#resolution-select').addEventListener('change', event => { state.resolution = event.target.value; $('#detail-resolution').textContent = state.resolution.replace('x', ' × '); save(); if (!storageFailed) toast('해상도를 저장했습니다.'); });
+  $('#memory-slider').addEventListener('input', event => { state.memory = Number(event.target.value); $('#memory-value').textContent = `${state.memory} GB`; save(); });
+  $('#resolution-select').addEventListener('change', event => { state.resolution = event.target.value; save(); if (!storageFailed) toast('해상도를 저장했습니다.'); });
   $('#motion-toggle').addEventListener('click', () => { state.motion = !state.motion; save(); sync(); });
   $('#reset-button').addEventListener('click', () => info('설정 초기화', '선택 버전, 즐겨찾기 및 실행 설정을 기본값으로 되돌립니다.', '초기화', () => { state = defaults(); save(); sync(); if (!storageFailed) toast('설정을 초기화했습니다.'); }));
   sync();
